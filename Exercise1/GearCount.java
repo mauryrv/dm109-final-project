@@ -32,7 +32,7 @@ import org.apache.flink.streaming.util.serialization.JSONDeserializationSchema;
 import org.apache.flink.util.Collector;
 import java.util.Properties;
 
-public class SpeedAvg {
+public class GearCount {
 
   public static void main(String[] args) throws Exception {
     // create execution environment
