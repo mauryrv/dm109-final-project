@@ -52,58 +52,65 @@ public class GearCount {
     stream  .flatMap(new TelemetryJsonParser())
             .keyBy(0)
             .timeWindow(Time.seconds(3))
-            .reduce(new AvgReducer())
-            .flatMap(new AvgMapper())
-            .map(new AvgPrinter())
+            .reduce(new CountGearChange())
+            .flatMap(new CountMapper())
+            .map(new CountPrinter())
             .print();
 
     env.execute();
     }
 
     // FlatMap Function - Json Parser
-    // Receive JSON data from Kafka broker and parse car number, speed and counter
+    // Receive JSON data from Kafka broker and parse car number, Gear and counter
     
     // {"Car": 9, "time": "52.196000", "telemetry": {"Vaz": "1.270000", "Distance": "4.605865", "LapTime": "0.128001", 
     // "RPM": "591.266113", "Ay": "24.344515", "Gear": "3.000000", "Throttle": "0.000000", 
     // "Steer": "0.207988", "Ax": "-17.551264", "Brake": "0.282736", "Fuel": "1.898847", "Speed": "34.137680"}}
 
-    static class TelemetryJsonParser implements FlatMapFunction<ObjectNode, Tuple3<Integer, Float, Integer>> {
+    static class TelemetryJsonParser implements FlatMapFunction<ObjectNode, Tuple3<String, Float,Integer>> {
       @Override
-      public void flatMap(ObjectNode jsonTelemetry, Collector<Tuple3<Integer, Float, Integer>> out) throws Exception {
-        Integer carNumber =jsonTelemetry.get("Car").asText();
-
-        if(carNumber==5)
-        {
-            float gear = jsonTelemetry.get("telemetry").get("Gear").floatValue(); // get GearChange??
-            out.collect(new Tuple3<>(carNumber,  gear, 1 ));
-        }
+      public void flatMap(ObjectNode jsonTelemetry, Collector<Tuple3<String, Float,Integer>> out) throws Exception {
+        String carNumber = "car" + jsonTelemetry.get("Car").asText();
+       float gear = jsonTelemetry.get("telemetry").get("Gear").floatValue(); 
+       out.collect(new Tuple3<>(carNumber,  gear,  1));
+     
       }
     }
 
     // Reduce Function - Sum samples and count
-    // This funciton return, for each car, the sum of two speed measurements and increment a conter.
-    // The counter is used for the average calculation.
-    static class AvgReducer implements ReduceFunction<Tuple3<Integer, Float, Integer>> {
-      @Override
+    // This funciton return, for each car, the gear change count.
+    // The counter is used for the count gear change calculation.
+    static class CountGearChange implements ReduceFunction<Tuple3<String, Float,Integer>> {
+
+       @Override
       public Tuple3<String, Float, Integer> reduce(Tuple3<String, Float,Integer> value1, Tuple3<String, Float, Integer> value2) {
-        return new Tuple3<>(value1.f0, value1.f1 + value2.f1, value1.f2+1);
+        int countGearChange = value1.f2;
+        if(value1.f1 != value2.f1){
+            countGearChange = countGearChange +1;
+        }
+        
+        return new Tuple3<>(value1.f0, value2.f1, countGearChange);
       }
     }
 
-    // FlatMap Function - Average
-    // Calculates the average
-    /*static class AvgMapper implements FlatMapFunction<Tuple3<String, Float, Integer>, Tuple2<String, Float>> {
+    // FlatMap Function - Count
+    // return  gear count converted
+    static class CountMapper implements FlatMapFunction<Tuple3<String, Float,Integer>, Tuple2<String, Float>> {
       @Override
       public void flatMap(Tuple3<String, Float, Integer> carInfo, Collector<Tuple2<String, Float>> out) throws Exception {
-        out.collect(  new Tuple2<>( carInfo.f0 , carInfo.f1/carInfo.f2 )  );
+        out.collect(  new Tuple2<>( carInfo.f0 , (float) carInfo.f2 )  );
       }
     }
 
-    // Map Function - Print average    
+    // Map Function - Print gear count    
     static class CountPrinter implements MapFunction<Tuple2<String, Float>, String> {
-      @Override
-      public String map(Tuple2<String, Float> avgEntry) throws Exception {
-        return  String.format(" %s : %.2f km/h ", avgEntry.f0 , avgEntry.f1 ) ;
+     @Override
+      public String map(Tuple2<String, Float> countEntry) throws Exception {
+         if(countEntry.f0.intern()=="car5")
+        {
+          return  String.format(" %s : %.2f ", countEntry.f0 , countEntry.f1 ) ;
+        }
+        return "...";
       }
     }
 
