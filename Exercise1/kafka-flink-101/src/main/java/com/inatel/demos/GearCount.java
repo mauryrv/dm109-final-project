@@ -67,23 +67,22 @@ public class GearCount {
     // "RPM": "591.266113", "Ay": "24.344515", "Gear": "3.000000", "Throttle": "0.000000", 
     // "Steer": "0.207988", "Ax": "-17.551264", "Brake": "0.282736", "Fuel": "1.898847", "Speed": "34.137680"}}
 
-    static class TelemetryJsonParser implements FlatMapFunction<ObjectNode, Tuple3<String, Float,Integer>> {
+    static class TelemetryJsonParser implements FlatMapFunction<ObjectNode, Tuple3<String, Integer,Integer>> {
       @Override
-      public void flatMap(ObjectNode jsonTelemetry, Collector<Tuple3<String, Float,Integer>> out) throws Exception {
-        String carNumber = "car" + jsonTelemetry.get("Car").asText();
-       float gear = jsonTelemetry.get("telemetry").get("Gear").floatValue(); 
-       out.collect(new Tuple3<>(carNumber,  gear,  1));
-     
+      public void flatMap(ObjectNode jsonTelemetry, Collector<Tuple3<String, Integer,Integer>> out) throws Exception {
+          String carNumber = "car" + jsonTelemetry.get("Car").asText();
+          Integer gear =  jsonTelemetry.get("telemetry").get("Gear").intValue();;
+          out.collect(new Tuple3<>(carNumber,  gear,  0));
       }
     }
 
     // Reduce Function - Sum samples and count
     // This funciton return, for each car, the gear change count.
     // The counter is used for the count gear change calculation.
-    static class CountGearChange implements ReduceFunction<Tuple3<String, Float,Integer>> {
+    static class CountGearChange implements ReduceFunction<Tuple3<String, Integer,Integer>> {
 
        @Override
-      public Tuple3<String, Float, Integer> reduce(Tuple3<String, Float,Integer> value1, Tuple3<String, Float, Integer> value2) {
+      public Tuple3<String, Integer, Integer> reduce(Tuple3<String, Integer,Integer> value1, Tuple3<String, Integer, Integer> value2) {
         int countGearChange = value1.f2;
         if(value1.f1 != value2.f1){
             countGearChange = countGearChange +1;
@@ -95,20 +94,20 @@ public class GearCount {
 
     // FlatMap Function - Count
     // return  gear count converted
-    static class CountMapper implements FlatMapFunction<Tuple3<String, Float,Integer>, Tuple2<String, Float>> {
+    static class CountMapper implements FlatMapFunction<Tuple3<String, Integer,Integer>, Tuple2<String, Integer>> {
       @Override
-      public void flatMap(Tuple3<String, Float, Integer> carInfo, Collector<Tuple2<String, Float>> out) throws Exception {
-        out.collect(  new Tuple2<>( carInfo.f0 , (float) carInfo.f2 )  );
+      public void flatMap(Tuple3<String, Integer, Integer> carInfo, Collector<Tuple2<String, Integer>> out) throws Exception {
+        out.collect(  new Tuple2<>( carInfo.f0 , carInfo.f2 )  );
       }
     }
 
     // Map Function - Print gear count    
-    static class CountPrinter implements MapFunction<Tuple2<String, Float>, String> {
+    static class CountPrinter implements MapFunction<Tuple2<String, Integer>, String> {
      @Override
-      public String map(Tuple2<String, Float> countEntry) throws Exception {
+      public String map(Tuple2<String, Integer> countEntry) throws Exception {
          if(countEntry.f0.intern()=="car5")
         {
-          return  String.format(" %s : %.2f ", countEntry.f0 , countEntry.f1 ) ;
+          return  String.format(" %s : %d ", countEntry.f0 , countEntry.f1 ) ;
         }
         return "...";
       }
